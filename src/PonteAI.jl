@@ -5,12 +5,18 @@ using DataStructures: Stack
 
 """
 Represents a game state.
-Teams are vectors of strengths; higher number = stronger.
+
+    myTeams, opponentTeams: vectors of team strengths. Higher number = stronger
+    We assume that these are 'canonicalized', i.e., the union of myTeams and
+    opponentTeams is 1,2, ... 2n.
+
+    chosenTeam: the index in opponentTeams of the team chosen by the opponent,
+    or 0 if I am the one that should choose first.
 """
 struct GameState
     myTeams::Vector{Int}
     opponentTeams::Vector{Int}
-    chosenTeam::Int # index in OpponentTeams of the team chosen by the opponent, or 0
+    chosenTeam::Int
     function GameState(myTeams, opponentTeams, chosenTeam=0, sanitize=true)
         if sanitize
             sort!(myTeams)
@@ -99,6 +105,10 @@ function apply(gs::GameState, move, canonicalize=true)
     end
 end
 
+"""
+Solves the game computing the optimal strategy for a given initial state.
+This can use, optionally, a pre-existing table of strategies that have already been computed, for instance to solve starting from more than one initial state.
+"""
 function solve_game(initialState::GameState, strategy=Strategy())
     stack = Stack{GameState}()
     @debug stack
@@ -156,5 +166,4 @@ end
 # using PonteAI
 
 # initial_state = GameState([1,4,5], [2,3,6])
-# solve_game(initial_state)
-
+# s = solve_game(initial_state); s[initial_state]
