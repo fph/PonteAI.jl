@@ -11,7 +11,12 @@ struct GameState
     myTeams::Vector{Int}
     opponentTeams::Vector{Int}
     chosenTeam::Int # index in OpponentTeams of the team chosen by the opponent, or 0
-    function GameState(myTeams, opponentTeams, chosenTeam=0)
+    function GameState(myTeams, opponentTeams, chosenTeam=0, sanitize=true)
+        if sanitize
+            sort!(myTeams)
+            sort!(opponentTeams)
+            @assert sort([myTeams; opponentTeams]) == 1:length(myTeams)+length(opponentTeams) "Wrong initial vector"
+        end
         return new(myTeams, opponentTeams, chosenTeam)
     end
 end
@@ -46,6 +51,15 @@ function moves(gs::GameState)
 end
 
 """
+    Subtracts 1 to all elements of v larger than a, in-place. 
+    Used to re-sanitize game states after removing teams.
+"""
+function decrease_larger!(v, a)
+    v[v.>a] .-= 1
+end
+
+
+"""
 Applies a move, returning a new GameState
 
 Return:
@@ -54,17 +68,27 @@ Return:
     * a bool to tell if the active player has changed in the new position. Note that in this game the same player may have to play twice in a row.
     * a bool to tell if the game is over
 """
-function apply(gs::GameState, move)
+function apply(gs::GameState, move, canonicalize=true)
     if gs.chosenTeam == 0
         # a "move" is merely choosing a team and passing the state over
         return GameState(gs.opponentTeams, gs.myTeams, move), 0, true
     else
-        @assert gs.myTeams[move] != gs.opponentTeams[gs.chosenTeam] 
-        iWin = gs.myTeams[move] > gs.opponentTeams[gs.chosenTeam]
+        myTeam = gs.myTeams[move]
+        theirTeam = gs.opponentTeams[gs.chosenTeam]
+        @assert myTeam != theirTeam
+        iWin = myTeam > theirTeam
 
         myTeams = gs.myTeams[Not(move)] # note that this must copy the vector, not mutate it
-        opponentTeams = gs.opponentTeams[Not(gs.chosenTeam)]        
-        # we may decide to "normalize" the teams by reindexing them into 1..n, to reduce the number of states; we choose not to for now.
+        opponentTeams = gs.opponentTeams[Not(gs.chosenTeam)]
+        if canonicalize
+            decrease_larger!(myTeams, myTeam)
+            decrease_larger!(opponentTeams, myTeam)
+            if theirTeam > myTeam
+                theirTeam -= 1
+            end
+            decrease_larger!(myTeams, theirTeam)
+            decrease_larger!(opponentTeams, theirTeam)
+        end
         if iWin
             # I play again
             return GameState(myTeams, opponentTeams), +1, false
