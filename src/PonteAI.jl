@@ -2,6 +2,8 @@ module PonteAI
 
 using InvertedIndices: Not
 using DataStructures: Stack
+using Combinatorics: combinations
+using DelimitedFiles: writedlm
 
 """
 Represents a game state.
@@ -33,6 +35,40 @@ function Base.:(==)(gs1::GameState, gs2::GameState)
             (gs1.chosenTeam == gs2.chosenTeam)
 end
 Base.hash(gs::GameState) = hash(gs.myTeams, hash(gs.opponentTeams, hash(gs.chosenTeam)))
+
+"""
+    Base.length(gs::GameState)
+
+The length of a GameState is the number of plies left in the game
+"""
+function Base.length(gs::GameState)
+    n = min(length(gs.myTeams), length(gs.opponentTeams))
+    return 2*n - (gs.chosenTeam==0 ? 0 : 1)
+end
+
+"""
+    Base.isless(gs1::GameState, gs2::GameState)
+
+Sort gamestates for listing in outputs. Lower = earlier in game (i.e., more teams),
+    and if it is a tie lower = weaker (lexicographically) myTeams
+"""
+function Base.isless(gs1::GameState, gs2::GameState)
+    l1 = length(gs1)
+    l2 = length(gs2)
+    if l1 > l2
+        return true
+    elseif l2 > l1
+        return false
+    else # l1 == l2
+        if gs1.myTeams < gs2.myTeams
+            return true
+        elseif gs2.myTeams > gs2.myTeams
+            return false
+        else # teams are equal
+            return (gs1.chosenTeam < gs2.chosenTeam)
+        end
+    end    
+end
 
 """
 Describes a part of an optimal strategy computed.
@@ -106,13 +142,14 @@ function apply(gs::GameState, move, canonicalize=true)
 end
 
 """
-Solves the game computing the optimal strategy for a given initial state.
-This can use, optionally, a pre-existing table of strategies that have already been computed, for instance to solve starting from more than one initial state.
+Solves the game computing the optimal strategy for given initial state or collection of states.
+This can use, optionally, a pre-existing table of strategies that have already been computed, for instance to solve starting from an existing cache.
 """
-function solve_game(initialState::GameState, strategy=Strategy())
+function solve_from_states(initialStates, strategy=Strategy())
     stack = Stack{GameState}()
-    @debug stack
-    push!(stack, initialState)
+    for state in initialStates
+        push!(stack, state)
+    end
     while !isempty(stack)
         gs = first(stack) # peek
         @debug "Analyzing state $(gs)."
@@ -160,10 +197,34 @@ function solve_game(initialState::GameState, strategy=Strategy())
     end
     return strategy
 end
+solve_from_state(initialState::GameState, strategy=Strategy()) = solve_from_states([initialState,], strategy)
+
+"""
+Generates all possible initial GameStates with n teams per side
+"""
+function all_initial_states(n)
+    return (GameState(a, setdiff(1:2*n, a)) for a in combinations(1:2*n, n))
+end
+
+"""
+Solves the game for all possible start positions with n teams per side
+"""
+function solve_game(n, strategy=Strategy())
+    return solve_from_states(all_initial_states(n), strategy)
+end
+
+function save(filename, strategy)
+    open(filename, "w") do io
+        writedlm(io, [["myTeams", "opponentTeams", "chosenTeam", "bestScore", "bestMove"]], ',')
+        for (gs, sitem) in sort(strategy)
+            writedlm(io, [[repr(gs.myTeams), repr(gs.opponentTeams), repr(gs.chosenTeam), repr(sitem.bestScore), repr(sitem.bestMoves)]], ',')
+        end
+    end
+end
 
 end
 
 # using PonteAI
 
 # initial_state = GameState([1,4,5], [2,3,6])
-# s = solve_game(initial_state); s[initial_state]
+# s = solve_from_state(initial_state); s[initial_state]
