@@ -213,11 +213,39 @@ function solve_game(n, strategy=Strategy())
     return solve_from_states(all_initial_states(n), strategy)
 end
 
+"""
+    to_string(gs::GameState, si=Nothing)
+
+Construct a compact representation of the GameState and, optionally, of its StrategyItem.
+
+A state is represented as an ordered string of a and b; the 'a' represent myTeams, 
+the 'b' represent opponentTeams, and they are sorted with the strongest team on the right.
+
+If there is a chosenTeam, it is represented by an uppercase B.
+
+If a StrategyItem is specified as the second argument, bestMoves are represented with 
+an uppercase A rather than a lowercase one.
+"""
+function to_string(gs::GameState, si=Nothing)
+    n = length(gs.myTeams)
+    s = fill('a', 2*n)
+    s[gs.opponentTeams] .= 'b'
+    if gs.chosenTeam != 0
+        s[gs.opponentTeams[gs.chosenTeam]] = 'B'
+    end
+    if si !== Nothing
+        s[gs.myTeams[si.bestMoves]] .= 'A'
+        push!(s, ':')
+        append!(s, string((n+si.bestScore) ÷ 2))
+    end
+    return join(s)
+end
+
 function save(filename, strategy)
     open(filename, "w") do io
-        writedlm(io, [["myTeams", "opponentTeams", "chosenTeam", "bestScore", "bestMove"]], ',')
+        writedlm(io, [["myTeams", "opponentTeams", "chosenTeam", "bestScore", "bestMove", "toString"]], ',')
         for (gs, sitem) in sort(strategy)
-            writedlm(io, [[repr(gs.myTeams), repr(gs.opponentTeams), repr(gs.chosenTeam), repr(sitem.bestScore), repr(sitem.bestMoves)]], ',')
+            writedlm(io, [[repr(gs.myTeams), repr(gs.opponentTeams), repr(gs.chosenTeam), repr(sitem.bestScore), repr(sitem.bestMoves), to_string(gs, sitem)]], ',')
         end
     end
 end
